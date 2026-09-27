@@ -332,10 +332,21 @@ async def _marker_visible(scope: Locator, selectors: tuple[str, ...]) -> bool:
         marker = scope.locator(selector).first
         try:
             if await marker.count() and await marker.is_visible():
+                await _dump_failure_evidence(scope, selector)
                 return True
         except Exception:
             continue
     return False
+
+
+async def _dump_failure_evidence(scope: Locator, selector: str) -> None:
+    """Log which marker matched and the bubble HTML to diagnose false positives."""
+    try:
+        html = await scope.inner_html()
+    except Exception:
+        html = "<unavailable>"
+    print(f"[DIAG] failure marker matched: selector={selector!r}", flush=True)
+    print(f"[DIAG] outgoing bubble HTML ({len(html)} bytes):\n{html[:3000]}", flush=True)
 
 
 async def _await_send_terminal_state(
