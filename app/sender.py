@@ -324,6 +324,13 @@ async def _click_retry_on_latest_failed_message(page: Page) -> bool:
         try:
             if await marker.count() and await marker.is_visible():
                 await marker.click(force=True)
+                # 点击失败图标后抖音会弹「重发该消息」确认框（取消 | 重发），
+                # 必须再点「重发」才会真正重新发送。
+                try:
+                    confirm = page.get_by_text("重发", exact=True).first
+                    await confirm.click(timeout=3_000)
+                except Exception:
+                    pass
                 return True
         except Exception:
             continue
