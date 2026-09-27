@@ -99,6 +99,21 @@ async def run(dry_run: bool = False, env_file: str | None = None) -> int:
                         # 使用智能重试策略打开目标
                         await _open_target_with_retry(chat, target.name, task.target_open_retries)
 
+                        if task.skip_if_active_today and not dry_run and await chat.has_activity_today():
+                            LOGGER.info("当天已有聊天记录，跳过续火花: %s", alias)
+                            results.append(
+                                TargetResult(
+                                    target=target.name,
+                                    status="skipped",
+                                    sent=0,
+                                    target_alias=alias,
+                                    error="当天已有聊天",
+                                )
+                            )
+                            metrics.record_skipped_message()
+                            target_progress.finish_target("success")
+                            continue
+
                         if not dry_run:
                             for message_index, message in enumerate(target.messages):
                                 message_id = _message_id(message_index, message)

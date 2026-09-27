@@ -94,6 +94,7 @@ def load_task(settings: Settings) -> TaskConfig:
         interval_max=interval_max,
         continue_on_error=raw.get("continue_on_error", True),
         prevent_duplicates=raw.get("prevent_duplicates", False),
+        skip_if_active_today=raw.get("skip_if_active_today", True),
         target_open_retries=target_open_retries,
         target_open_timeout_seconds=target_open_timeout_seconds,
     )
@@ -101,6 +102,8 @@ def load_task(settings: Settings) -> TaskConfig:
         raise ConfigError("continue_on_error 必须是布尔值")
     if not isinstance(task.prevent_duplicates, bool):
         raise ConfigError("prevent_duplicates 必须是布尔值")
+    if not isinstance(task.skip_if_active_today, bool):
+        raise ConfigError("skip_if_active_today 必须是布尔值")
 
     _validate_stickers(task)
     return task

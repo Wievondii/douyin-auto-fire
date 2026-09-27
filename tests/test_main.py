@@ -52,6 +52,7 @@ async def test_authentication_failure_stops_remaining_targets_and_notifies(monke
     history.run_date.return_value = "2026-08-09"
     chat = MagicMock()
     chat.open_target = AsyncMock()
+    chat.has_activity_today = AsyncMock(return_value=False)
     notify = AsyncMock()
     monkeypatch.setattr(main_module, "load_settings", lambda _env=None: settings)
     monkeypatch.setattr(main_module, "load_task", lambda _settings: task)
@@ -126,6 +127,7 @@ async def test_waits_between_consecutive_messages_for_same_friend(monkeypatch, t
     history.run_date.return_value = "2026-08-09"
     chat = MagicMock()
     chat.open_target = AsyncMock()
+    chat.has_activity_today = AsyncMock(return_value=False)
     send_message = AsyncMock()
     sleeps = []
 

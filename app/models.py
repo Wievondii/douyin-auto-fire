@@ -41,6 +41,7 @@ class TaskConfig:
     interval_max: float
     continue_on_error: bool
     prevent_duplicates: bool
+    skip_if_active_today: bool = True
     target_open_retries: int = 1
     target_open_timeout_seconds: float = 15.0
 

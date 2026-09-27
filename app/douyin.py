@@ -166,6 +166,21 @@ class DouyinChat:
     async def message_input(self) -> Locator:
         return await first_visible(self.page, MESSAGE_INPUTS, self.timeout_ms)
 
+    async def has_activity_today(self) -> bool:
+        """True if this conversation already has messages from today.
+
+        Reads the latest timestamp label in the open chat ("刚刚" / "x分钟前" /
+        "HH:MM" / "今天…" mean today; "昨天…" / dates / weekday names do not).
+        A false negative only means we send an extra spark message — safe.
+        """
+        texts = await self.page.locator(
+            '[class*="MessageBoxTime"], [class*="messageBoxTime"], [class*="MessageTime"]'
+        ).all_inner_texts()
+        if not texts:
+            return False
+        latest = texts[-1].strip()
+        return _timestamp_is_today(latest)
+
     async def _confirm_opened(self, name: str, timeout_ms: int | None = None) -> None:
         timeout = timeout_ms if timeout_ms is not None else self.confirm_timeout_ms
         deadline = asyncio.get_running_loop().time() + timeout / 1000
@@ -332,3 +347,33 @@ async def first_visible(page: Page, selectors: tuple[str, ...], timeout_ms: int 
         except Exception:
             continue
     raise PageOperationError(f"找不到页面元素，已尝试: {', '.join(selectors)}")
+
+
+_TODAY_PATTERNS = (
+    re.compile(r"刚刚"),
+    re.compile(r"^\d+\s*分钟前$"),
+    re.compile(r"^\d+\s*小时前$"),
+    re.compile(r"今天"),
+    re.compile(r"^\d{1,2}:\d{2}$"),
+)
+_NOT_TODAY_PATTERNS = (
+    re.compile(r"昨天"),
+    re.compile(r"前天"),
+    re.compile(r"[周星期][一二三四五六日天]"),
+    re.compile(r"\d{1,2}[/-]\d{1,2}"),
+    re.compile(r"\d{4}[-/年]"),
+    re.compile(r"\d+\s*天前"),
+)
+
+
+def _timestamp_is_today(label: str) -> bool:
+    text = label.strip()
+    if not text:
+        return False
+    for pattern in _NOT_TODAY_PATTERNS:
+        if pattern.search(text):
+            return False
+    for pattern in _TODAY_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
