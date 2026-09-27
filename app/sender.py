@@ -156,7 +156,15 @@ async def send_text(chat: DouyinChat, content: str) -> None:
     before = await _mark_latest_outgoing_message(page)
     await page.wait_for_timeout(300)
     await _trigger_send(page)
-    await _confirm_outgoing_message(page, before, label="文字", expected_text=content)
+    try:
+        await _confirm_outgoing_message(page, before, label="文字", expected_text=content)
+    except PageOperationError as exc:
+        # 与表情消息一致：抖音 IM 偶发拒发时页面会给出「重试」控件，
+        # 点一次重试通常即可成功（尤其在跨境网络下）。
+        if "页面提示可以重试" in str(exc) and await _click_retry_on_latest_failed_message(page):
+            await _confirm_outgoing_message(page, before, label="文字", expected_text=content)
+            return
+        raise
 
 
 async def send_image(page: Page, image_path: str) -> None:
@@ -322,7 +330,7 @@ async def _click_retry_on_latest_failed_message(page: Page) -> bool:
     return False
 
 
-async def _marker_visible(scope: Locator, selectors: tuple[str, ...]) -> bool:
+async def _marker_visible(scope: Locator, selectors: tuple[str, ...], *, dump: bool = False) -> bool:
     """True if any selector in ``selectors`` resolves to a visible element.
 
     Scoped to ``scope`` (the single outgoing message) so unrelated page-wide
@@ -332,7 +340,8 @@ async def _marker_visible(scope: Locator, selectors: tuple[str, ...]) -> bool:
         marker = scope.locator(selector).first
         try:
             if await marker.count() and await marker.is_visible():
-                await _dump_failure_evidence(scope, selector)
+                if dump:
+                    await _dump_failure_evidence(scope, selector)
                 return True
         except Exception:
             continue
@@ -397,7 +406,7 @@ async def _await_send_terminal_state(
             raise PageOperationError(
                 f"{label}发送状态未能确认（发送超时或状态不确定），为避免重复不会自动重试"
             )
-        if await _marker_visible(scope, SEND_FAILURE_MARKERS):
+        if await _marker_visible(scope, SEND_FAILURE_MARKERS, dump=True):
             raise PageOperationError(f"{label}发送失败，页面提示可以重试")
         if await _marker_visible(scope, SEND_PENDING_MARKERS):
             break  # -> resolve pending in Phase 2
@@ -413,13 +422,13 @@ async def _await_send_terminal_state(
             raise PageOperationError(
                 f"{label}发送状态未能确认（发送超时或状态不确定），为避免重复不会自动重试"
             )
-        if await _marker_visible(scope, SEND_FAILURE_MARKERS):
+        if await _marker_visible(scope, SEND_FAILURE_MARKERS, dump=True):
             raise PageOperationError(f"{label}发送失败，页面提示可以重试")
         if not await _marker_visible(scope, SEND_PENDING_MARKERS):
             # Spinner gone. Require it to STAY clear across the stable window --
             # the retry marker can mount a tick after the spinner disappears.
             await page.wait_for_timeout(SEND_STABLE_INTERVAL_MS)
-            if await _marker_visible(scope, SEND_FAILURE_MARKERS):
+            if await _marker_visible(scope, SEND_FAILURE_MARKERS, dump=True):
                 raise PageOperationError(f"{label}发送失败，页面提示可以重试")
             if not await _marker_visible(scope, SEND_PENDING_MARKERS):
                 return  # terminal: success
