@@ -82,7 +82,14 @@ async def open_douyin(settings: Settings) -> AsyncIterator[BrowserSession]:
             launch_args["executable_path"] = settings.browser_path
         browser = await playwright.chromium.launch(**launch_args)
 
-        context_args = {"viewport": {"width": 1440, "height": 1000}, "locale": "zh-CN"}
+        context_args = {
+            "viewport": {"width": 1440, "height": 1000},
+            "locale": "zh-CN",
+            # GitHub Actions 默认 UTC/美国地区；抖音会校验客户端时区与地区特征
+            "timezone_id": "Asia/Shanghai",
+            "geolocation": {"longitude": 116.397128, "latitude": 39.916527},
+            "permissions": ["geolocation"],
+        }
         if settings.storage_state:
             state = parse_auth_json(settings.storage_state, "DOUYIN_STORAGE_STATE")
             if not isinstance(state, dict):
