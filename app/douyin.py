@@ -167,16 +167,38 @@ class DouyinChat:
         return await first_visible(self.page, MESSAGE_INPUTS, self.timeout_ms)
 
     async def has_activity_today(self) -> bool:
-        """True if this conversation already has messages from today.
+        """True if *I* already sent a message in this conversation today.
 
-        Timestamp nodes come newest-first in the DOM. Check every label rather
-        than one slot so day-order quirks cannot hide today's activity.
-        Labels "刚刚" / "x分钟前" / "HH:MM" / "今天…" mean today.
+        Only my own messages count: the friend messaging me does not mean the
+        spark is secured on my side. Timestamp labels are newest-first and some
+        bubbles share the group timestamp, so inherit the last label while
+        walking the list.
         """
-        texts = await self.page.locator(
-            '[class*="MessageBoxTime"], [class*="messageBoxTime"], [class*="MessageTime"]'
-        ).all_inner_texts()
-        return any(_timestamp_is_today(t) for t in texts)
+        return await self.page.evaluate(
+            """() => {
+                const notToday = /昨天|前天|[周星期][一二三四五六日天]|\\d{1,2}[\\/-]\\d{1,2}|\\d{4}[-/年]|\\d+\\s*天前/;
+                const today = /刚刚|^\\d+\\s*分钟前$|^\\d+\\s*小时前$|今天|^\\d{1,2}:\\d{2}$/;
+                const isToday = (raw) => {
+                    const t = (raw || '').trim();
+                    if (!t) return false;
+                    if (notToday.test(t)) return false;
+                    return today.test(t);
+                };
+                const boxes = document.querySelectorAll(
+                    '[class*="messageMessageBoxmessageBox"]'
+                );
+                let lastTime = '';
+                for (const box of boxes) {
+                    const timeEl = box.querySelector('[class*="MessageBoxTime"]');
+                    if (timeEl && timeEl.innerText.trim()) {
+                        lastTime = timeEl.innerText.trim();
+                    }
+                    const fromMe = !!box.querySelector('[class*="isFromMe"]');
+                    if (fromMe && isToday(lastTime)) return true;
+                }
+                return false;
+            }"""
+        )
 
     async def _confirm_opened(self, name: str, timeout_ms: int | None = None) -> None:
         timeout = timeout_ms if timeout_ms is not None else self.confirm_timeout_ms
