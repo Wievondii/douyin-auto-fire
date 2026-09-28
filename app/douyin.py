@@ -169,17 +169,14 @@ class DouyinChat:
     async def has_activity_today(self) -> bool:
         """True if this conversation already has messages from today.
 
-        Reads the latest timestamp label in the open chat ("刚刚" / "x分钟前" /
-        "HH:MM" / "今天…" mean today; "昨天…" / dates / weekday names do not).
-        A false negative only means we send an extra spark message — safe.
+        Timestamp nodes come newest-first in the DOM. Check every label rather
+        than one slot so day-order quirks cannot hide today's activity.
+        Labels "刚刚" / "x分钟前" / "HH:MM" / "今天…" mean today.
         """
         texts = await self.page.locator(
             '[class*="MessageBoxTime"], [class*="messageBoxTime"], [class*="MessageTime"]'
         ).all_inner_texts()
-        if not texts:
-            return False
-        latest = texts[-1].strip()
-        return _timestamp_is_today(latest)
+        return any(_timestamp_is_today(t) for t in texts)
 
     async def _confirm_opened(self, name: str, timeout_ms: int | None = None) -> None:
         timeout = timeout_ms if timeout_ms is not None else self.confirm_timeout_ms
