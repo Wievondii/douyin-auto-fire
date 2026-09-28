@@ -7,10 +7,10 @@ on:
         description: Only verify login and friends without sending
         type: boolean
         default: false
-  # 每天 00:00 UTC（北京时间 08:00）自动发送
+  # 每天 11:00 北京时间（= 03:00 UTC）自动发送
   # 注意：GitHub Actions cron 仅支持 UTC
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 3 * * *"
 
 concurrency:
   group: douyin-daily-sender
@@ -18,7 +18,8 @@ concurrency:
 
 jobs:
   send:
-    runs-on: ubuntu-latest
+    # 自托管 Runner：跑在本机国内 IP，避开 GitHub 机房 IP 风控
+    runs-on: [self-hosted, douyin-pc]
     timeout-minutes: 30
     permissions:
       contents: read
