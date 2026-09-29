@@ -52,6 +52,11 @@ async def run(dry_run: bool = False, env_file: str | None = None) -> int:
     screenshots: list[Path] = []
     fatal_error: Exception | None = None
 
+    # 快速路径：当天所有目标消息都已成功处理过，直接退出，不再启动浏览器
+    if task.prevent_duplicates and not dry_run and _all_messages_done(history, task, run_date):
+        LOGGER.info("当天所有好友均已续上火花（发送记录齐全），直接退出")
+        return 0
+
     try:
         # 阶段1: 打开浏览器
         multi_stage.start_stage(0)
@@ -258,6 +263,9 @@ def main() -> int:
     except KeyboardInterrupt:
         print("任务已取消")
         return 130
+    finally:
+        # 确保日志落盘、句柄释放，进程立即退出不残留
+        logging.shutdown()
 
 
 def _parse_cli_args() -> argparse.Namespace:
@@ -394,6 +402,16 @@ def _trace_path(artifacts_dir: Path) -> Path:
 def _message_id(index, message) -> str:
     payload = json.dumps(asdict(message), ensure_ascii=False, sort_keys=True, default=str)
     return f"{index}-{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _all_messages_done(history: History, task, run_date: str) -> bool:
+    """True when every message of every target was already sent today."""
+    for target in task.targets:
+        for index, message in enumerate(target.messages):
+            key = history.key(task.task_id, run_date, target.name, _message_id(index, message))
+            if not history.contains(key):
+                return False
+    return bool(task.targets)
 
 
 async def _open_target_with_retry(chat: DouyinChat, target_name: str, max_retries: int) -> None:
